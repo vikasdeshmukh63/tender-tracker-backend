@@ -1,0 +1,20 @@
+export default (sequelize, DataTypes) => {
+  const TaskComment = sequelize.define(
+    "TaskComment",
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      taskId: { type: DataTypes.INTEGER, allowNull: false },
+      author_email: DataTypes.STRING,
+      author_name: DataTypes.STRING,
+      content: DataTypes.TEXT,
+    },
+    {
+      tableName: "task_comments",
+      timestamps: true,
+      underscored: true,
+    }
+  );
+
+  return TaskComment;
+};
+
