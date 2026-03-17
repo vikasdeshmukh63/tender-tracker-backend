@@ -13,6 +13,12 @@ if (emailConfig.host && emailConfig.user && emailConfig.pass) {
       pass: emailConfig.pass,
     },
   });
+} else {
+  console.log("[emailService] SMTP config incomplete; email disabled", {
+    host: emailConfig.host,
+    user: emailConfig.user,
+    hasPass: Boolean(emailConfig.pass),
+  });
 }
 
 export const sendEmail = async ({ to, subject, body, fromName = "Tender Tracker" }) => {
@@ -21,11 +27,19 @@ export const sendEmail = async ({ to, subject, body, fromName = "Tender Tracker"
     return;
   }
 
-  await transporter.sendMail({
-    from: `"${fromName}" <${emailConfig.user}>`,
-    to,
-    subject,
-    html: body,
-  });
+  console.log("[emailService] Attempting to send email", { to, subject });
+
+  try {
+    await transporter.sendMail({
+      from: `"${fromName}" <${emailConfig.user}>`,
+      to,
+      subject,
+      html: body,
+    });
+    console.log("[emailService] Email sent successfully", { to, subject });
+  } catch (err) {
+    console.error("[emailService] Failed to send email", { to, subject, error: err.message });
+    throw err;
+  }
 };
 

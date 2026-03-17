@@ -37,7 +37,7 @@ app.use(errorHandler);
 const start = async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync(); // in real prod, prefer migrations instead of sync()
+    await sequelize.sync({ alter: true }); // in real prod, prefer migrations instead of sync()
     app.listen(appConfig.port, () => {
       console.log(`Backend listening on port ${appConfig.port}`);
     });

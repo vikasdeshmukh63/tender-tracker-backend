@@ -9,6 +9,19 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.ENUM("user", "team_lead", "admin"),
         defaultValue: "user",
       },
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+      otpCode: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      otpExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       tableName: "users",
