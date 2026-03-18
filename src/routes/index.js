@@ -8,6 +8,7 @@ import taskCommentRoutes from "./taskCommentRoutes.js";
 import notificationRuleRoutes from "./notificationRuleRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 import userProfileRoutes from "./userProfileRoutes.js";
+import fileRoutes from "./fileRoutes.js";
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.use("/task-comments", taskCommentRoutes);
 router.use("/notification-rules", notificationRuleRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/user-profiles", userProfileRoutes);
+router.use("/files", fileRoutes);
 
 export default router;
 

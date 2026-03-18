@@ -47,4 +47,39 @@ export const getPublicUrlForFile = (objectName) => {
   return `${scheme}://${host}:${port}/${bucketName}/${encodeURIComponent(objectName)}`;
 };
 
+/**
+ * Generate a time-limited presigned GET URL for a MinIO object.
+ * @param {string} objectName  – the MinIO key (e.g. "tender-attachments/2/file.pdf")
+ * @param {number} expiry      – seconds until the URL expires (default 1 hour)
+ */
+export const getPresignedUrl = (objectName, expiry = 3600) => {
+  return new Promise((resolve, reject) => {
+    minioClient.presignedGetObject(bucketName, objectName, expiry, (err, url) => {
+      if (err) reject(err);
+      else resolve(url);
+    });
+  });
+};
+
+/**
+ * Delete an object from MinIO by its object name.
+ * Resolves silently if the object does not exist (idempotent).
+ */
+export const deleteFromMinio = (objectName) => {
+  return new Promise((resolve, reject) => {
+    minioClient.removeObject(bucketName, objectName, (err) => {
+      if (err) {
+        // "NoSuchKey" means it was already gone — treat as success
+        if (err.code === "NoSuchKey" || err.code === "NoSuchObject") {
+          resolve();
+        } else {
+          reject(err);
+        }
+      } else {
+        resolve();
+      }
+    });
+  });
+};
+
 

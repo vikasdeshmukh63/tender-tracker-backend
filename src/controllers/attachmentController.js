@@ -1,23 +1,9 @@
 import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
 import models from "../models/index.js";
-import { getUploadPath, getPublicUrlForFile } from "../services/fileService.js";
+import { uploadBufferToMinio, deleteFromMinio } from "../services/fileService.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, getUploadPath(""));
-  },
-  filename: (req, file, cb) => {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + "-" + file.originalname.replace(/\s+/g, "_"));
-  },
-});
-
-export const upload = multer({ storage });
+// Memory storage — buffer is streamed straight to MinIO; nothing lands on local disk
+export const upload = multer({ storage: multer.memoryStorage() });
 
 export const listAttachments = async (req, res, next) => {
   try {
@@ -37,12 +23,23 @@ export const uploadAttachment = async (req, res, next) => {
     const { tenderId } = req.params;
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    const fileUrl = getPublicUrlForFile(path.basename(req.file.path));
+    const timestamp = Date.now();
+    const safeName = req.file.originalname.replace(/\s+/g, "_");
+    const objectName = `tender-attachments/${tenderId}/${timestamp}-${safeName}`;
+
+    const fileUrl = await uploadBufferToMinio(
+      objectName,
+      req.file.buffer,
+      req.file.mimetype
+    );
+
     const attachment = await models.TenderAttachment.create({
       tenderId,
       file_url: fileUrl,
       file_name: req.file.originalname,
       file_size: req.file.size,
+      document_type: req.body.document_type || "other",
+      file_object_name: objectName,
       uploaded_by: req.user?.email || null,
     });
 
@@ -57,10 +54,19 @@ export const deleteAttachment = async (req, res, next) => {
     const { id } = req.params;
     const attachment = await models.TenderAttachment.findByPk(id);
     if (!attachment) return res.status(404).json({ message: "Attachment not found" });
+
+    // Delete the file from MinIO first
+    if (attachment.file_object_name) {
+      try {
+        await deleteFromMinio(attachment.file_object_name);
+      } catch (minioErr) {
+        console.error("[attachmentController] MinIO delete failed:", minioErr.message);
+      }
+    }
+
     await attachment.destroy();
     res.status(204).end();
   } catch (err) {
     next(err);
   }
 };
-
