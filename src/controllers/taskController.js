@@ -17,6 +17,39 @@ function collectAssigneeEmails(taskOrPayload) {
   return [...emails];
 }
 
+/**
+ * Create an in-app notification for each assignee.
+ * Fire-and-forget — errors are logged but never bubble up to the caller.
+ */
+async function notifyAssignees(task, assignedBy, isUpdate) {
+  try {
+    const emails = collectAssigneeEmails(task);
+    if (!emails.length) return;
+
+    const verb = isUpdate ? "updated" : "assigned to you";
+    const dedupSuffix = isUpdate ? `upd_${Date.now()}` : "new";
+
+    await Promise.all(
+      emails.map((email) =>
+        models.Notification.create({
+          user_email: email,
+          type: "task_assigned",
+          message: isUpdate
+            ? `Task updated by ${assignedBy}: "${task.title}"`
+            : `New task assigned by ${assignedBy}: "${task.title}"`,
+          dedup_key: `task_${task.id}_${dedupSuffix}_${email}`,
+          tender_id: task.tenderId,
+          is_read: false,
+        }).catch((err) =>
+          console.warn("[taskController] Failed to create in-app notification:", err.message)
+        )
+      )
+    );
+  } catch (err) {
+    console.warn("[taskController] notifyAssignees error:", err.message);
+  }
+}
+
 export const listTasks = async (req, res, next) => {
   try {
     const { tender_id, limit } = req.query;
@@ -59,7 +92,12 @@ export const createTask = async (req, res, next) => {
     const task = await models.Task.create(payload);
     res.status(201).json(task);
 
-    // Fire-and-forget: notify all assignees about the new task assignment
+    const assignedBy = req.user.fullName || req.user.email;
+
+    // Fire-and-forget: in-app notifications
+    notifyAssignees(task, assignedBy, false);
+
+    // Fire-and-forget: email notifications
     const assigneeEmails = collectAssigneeEmails(task);
     if (assigneeEmails.length > 0) {
       sendTaskAssignmentEmail({
@@ -68,7 +106,7 @@ export const createTask = async (req, res, next) => {
         description: task.description,
         priority: task.priority,
         due_date: task.due_date,
-        assignedBy: req.user.fullName || req.user.email,
+        assignedBy,
         isUpdate: false,
       }).catch((err) =>
         console.error("[taskController] Failed to send task creation email:", err.message)
@@ -83,11 +121,16 @@ export const updateTask = async (req, res, next) => {
   try {
     const task = await models.Task.findByPk(req.params.id);
     if (!task) return res.status(404).json({ message: "Task not found" });
+
+    const assignedBy = req.user.fullName || req.user.email;
+
     // Team leads/admins can update full task; users can only change status on their own tasks
     if (req.user.role === "team_lead" || req.user.role === "admin") {
       await task.update(req.body);
 
-      // Fire-and-forget: notify assignees that the task was updated
+      // Fire-and-forget: in-app + email notifications
+      notifyAssignees(task, assignedBy, true);
+
       const assigneeEmails = collectAssigneeEmails(task);
       if (assigneeEmails.length > 0) {
         sendTaskAssignmentEmail({
@@ -96,7 +139,7 @@ export const updateTask = async (req, res, next) => {
           description: task.description,
           priority: task.priority,
           due_date: task.due_date,
-          assignedBy: req.user.fullName || req.user.email,
+          assignedBy,
           isUpdate: true,
         }).catch((err) =>
           console.error("[taskController] Failed to send task update email:", err.message)
@@ -138,4 +181,3 @@ export const deleteTask = async (req, res, next) => {
     next(err);
   }
 };
-

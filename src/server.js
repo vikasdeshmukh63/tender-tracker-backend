@@ -41,6 +41,7 @@ const start = async () => {
     app.listen(appConfig.port, () => {
       console.log(`Backend listening on port ${appConfig.port}`);
     });
+
   } catch (err) {
     console.error("Failed to start server", err);
     process.exit(1);
